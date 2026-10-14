@@ -1,4 +1,10 @@
 import { LEVELS, ASSETS, GRID_SIZE, TEXT } from '../utils/constants.js';
+import {
+    finishRun,
+    saveProgress,
+    sendScore,
+    updateRunState
+} from '../utils/youtubePlayables.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -6,12 +12,14 @@ export default class GameScene extends Phaser.Scene {
     }
 
     init(data) {
-        this.currentLevel = data.level || 0;
-        this.score = data.score || 0;
-        this.health = data.health || 3;
+        this.currentLevel = data.level ?? 0;
+        this.score = data.score ?? 0;
+        this.health = data.health ?? 3;
         this.healthyCount = 0;
         this.collectedHealthy = 0;
+        this.combo = 0;
         this.isGameOver = false;
+        this.isTransitioning = false;
     }
 
     create() {
@@ -19,8 +27,6 @@ export default class GameScene extends Phaser.Scene {
 
         // Background
         this.add.rectangle(0, 0, width, height, 0x87CEEB).setOrigin(0).setScrollFactor(0);
-        
-        // Parallax Layers
         this.createParallax();
 
         // Physics Groups
@@ -36,7 +42,20 @@ export default class GameScene extends Phaser.Scene {
         this.buildLevel();
 
         // UI Scene
-        this.scene.launch('UIScene', { score: this.score, health: this.health, level: this.currentLevel + 1 });
+        this.scene.stop('UIScene');
+        this.scene.launch('UIScene', {
+            score: this.score,
+            health: this.health,
+            level: this.currentLevel + 1,
+            fruit: this.collectedHealthy,
+            fruitTotal: this.healthyCount
+        });
+        updateRunState({
+            currentLevel: this.currentLevel,
+            score: this.score,
+            health: this.health,
+            completed: false
+        });
 
         // Input
         this.cursors = this.input.keyboard.createCursorKeys();
@@ -54,22 +73,25 @@ export default class GameScene extends Phaser.Scene {
         // Camera
         this.cameras.main.setBounds(0, 0, width, height); 
         this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+        this.showLevelBanner();
     }
 
     createParallax() {
         const { width, height } = this.scale;
-        
-        // Mountains (slower)
-        for (let i = 0; i < 3; i++) {
-            this.add.image(i * 400, height - 100, 'mountain').setOrigin(0.5, 1).setScrollFactor(0.2).setAlpha(0.6);
-        }
+        this.add.image(width / 2, height / 2, 'garden-bg')
+            .setDisplaySize(width, height)
+            .setScrollFactor(0)
+            .setAlpha(0.88);
+        this.add.rectangle(0, 0, width, height, 0x08202a, 0.12)
+            .setOrigin(0)
+            .setScrollFactor(0);
 
-        // Clouds (faster)
         this.clouds = this.add.group();
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 3; i++) {
             const cloud = this.add.image(Phaser.Math.Between(0, width), Phaser.Math.Between(50, 200), 'cloud')
                 .setScrollFactor(0.4)
-                .setAlpha(0.7);
+                .setAlpha(0.28)
+                .setScale(Phaser.Math.FloatBetween(0.8, 1.4));
             this.clouds.add(cloud);
         }
     }
@@ -105,16 +127,21 @@ export default class GameScene extends Phaser.Scene {
                         this.platforms.create(posX, posY, ASSETS.PLATFORM);
                         break;
                     case '2': // Player Start
-                        this.player = this.physics.add.sprite(posX, posY, ASSETS.PLAYER);
+                        this.player = this.physics.add.sprite(posX, posY - 24, ASSETS.PLAYER);
+                        this.player.setDisplaySize(38, 58);
+                        this.playerBaseScaleX = this.player.scaleX;
+                        this.playerBaseScaleY = this.player.scaleY;
                         this.player.setCollideWorldBounds(true);
                         this.player.setDragX(1000);
-                        this.player.body.setGravityY(1000);
+                        this.player.setDepth(5);
                         break;
                     case '3': // Apple
                     case '4': // Banana
                     case '5': // Carrot
                         const type = char === '3' ? ASSETS.APPLE : (char === '4' ? ASSETS.BANANA : ASSETS.CARROT);
                         const item = this.healthyItems.create(posX, posY, type);
+                        item.setDisplaySize(40, 40);
+                        item.body.setCircle(96, 32, 32);
                         item.body.allowGravity = false;
                         this.healthyCount++;
                         this.tweens.add({
@@ -130,6 +157,8 @@ export default class GameScene extends Phaser.Scene {
                     case '7': // Soda
                         const uType = char === '6' ? ASSETS.BURGER : ASSETS.SODA;
                         const uItem = this.unhealthyItems.create(posX, posY, uType);
+                        uItem.setDisplaySize(char === '6' ? 50 : 42, 42);
+                        uItem.body.setCircle(94, 34, 34);
                         uItem.body.allowGravity = false;
                         if (char === '6') {
                             this.tweens.add({
@@ -166,7 +195,8 @@ export default class GameScene extends Phaser.Scene {
             this.player.setFlipX(false);
             this.animateWobble();
         } else {
-            this.player.setScale(1); // Reset scale when idle
+            this.player.setScale(this.playerBaseScaleX, this.playerBaseScaleY);
+            this.player.setAngle(0);
         }
 
         if ((this.cursors.up.isDown || this.wasd.W.isDown || this.doJump) && this.player.body.touching.down) {
@@ -175,7 +205,9 @@ export default class GameScene extends Phaser.Scene {
             this.animateSquash(0.8, 1.2); // Stretch when jumping
         }
 
-        if (this.player.y > this.scale.height - 20) {
+        if (!this.player.body.touching.down) this.wasTouchingDown = false;
+
+        if (this.player.y > this.scale.height - 78) {
             this.gameOver(false);
         }
 
@@ -201,9 +233,8 @@ export default class GameScene extends Phaser.Scene {
     animateSquash(sx, sy) {
         this.tweens.add({
             targets: this.player,
-            scaleX: sx,
-            scaleY: sy,
-            duration: 100,
+            alpha: { from: 0.82, to: 1 },
+            duration: 140,
             yoyo: true,
             ease: 'Cubic.easeOut'
         });
@@ -219,11 +250,16 @@ export default class GameScene extends Phaser.Scene {
     collectHealthy(player, item) {
         this.collectEmitter.emitAt(item.x, item.y, 15);
         item.destroy();
-        this.score += 10;
+        this.combo = Math.min(this.combo + 1, 5);
+        const points = 10 + (this.combo - 1) * 5;
+        this.score += points;
         this.collectedHealthy++;
+        updateRunState({ score: this.score, health: this.health });
         
         this.events.emit('updateScore', this.score);
-        this.showFeedback(item.x, item.y, Phaser.Utils.Array.GetRandom(TEXT.HEALTHY), 0x4CAF50);
+        this.events.emit('updateFruit', this.collectedHealthy, this.healthyCount);
+        this.events.emit('updateCombo', this.combo);
+        this.showFeedback(item.x, item.y, `${Phaser.Utils.Array.GetRandom(TEXT.HEALTHY)} +${points}`, 0x4CAF50);
         
         if (this.collectedHealthy >= this.healthyCount) {
             this.door.setAlpha(1);
@@ -247,8 +283,12 @@ export default class GameScene extends Phaser.Scene {
 
         this.hitEmitter.emitAt(player.x, player.y, 20);
         this.health--;
+        this.combo = 0;
+        updateRunState({ score: this.score, health: Math.max(1, this.health) });
         this.events.emit('updateHealth', this.health);
+        this.events.emit('updateCombo', this.combo);
         this.showFeedback(player.x, player.y, Phaser.Utils.Array.GetRandom(TEXT.UNHEALTHY), 0xF44336);
+        this.cameras.main.shake(180, 0.008);
 
         if (this.health <= 0) {
             this.gameOver(false);
@@ -263,9 +303,18 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    reachExit() {
+    async reachExit() {
+        if (this.isTransitioning || this.collectedHealthy < this.healthyCount) return;
+        this.isTransitioning = true;
+
         if (this.collectedHealthy >= this.healthyCount) {
             if (this.currentLevel < LEVELS.length - 1) {
+                await saveProgress({
+                    currentLevel: this.currentLevel + 1,
+                    score: this.score,
+                    health: this.health,
+                    completed: false
+                });
                 this.scene.start('GameScene', { 
                     level: this.currentLevel + 1, 
                     score: this.score, 
@@ -303,6 +352,7 @@ export default class GameScene extends Phaser.Scene {
             callback: (correct) => {
                 if (correct) {
                     this.score += 50;
+                    updateRunState({ score: this.score, health: this.health });
                     this.events.emit('updateScore', this.score);
                 }
                 this.physics.resume();
@@ -313,16 +363,18 @@ export default class GameScene extends Phaser.Scene {
 
     createMobileControls() {
         const { width, height } = this.scale;
-        const btnSize = 70;
-        const margin = 100;
+        const btnSize = 96;
+        const margin = 90;
 
-        const leftBtn = this.add.circle(margin, height - margin, btnSize/2, 0xFFFFFF, 0.4).setInteractive().setScrollFactor(0);
-        const rightBtn = this.add.circle(margin + btnSize + 30, height - margin, btnSize/2, 0xFFFFFF, 0.4).setInteractive().setScrollFactor(0);
-        const jumpBtn = this.add.circle(width - margin, height - margin, btnSize/2, 0xFFFFFF, 0.4).setInteractive().setScrollFactor(0);
+        const leftBtn = this.add.circle(margin, height - margin, btnSize/2, 0x0b2632, 0.76).setInteractive().setScrollFactor(0).setDepth(20);
+        const rightBtn = this.add.circle(margin + btnSize + 20, height - margin, btnSize/2, 0x0b2632, 0.76).setInteractive().setScrollFactor(0).setDepth(20);
+        const jumpBtn = this.add.circle(width - margin, height - margin, btnSize/2, 0x55b96a, 0.82).setInteractive().setScrollFactor(0).setDepth(20);
 
-        this.add.text(margin, height - margin, '<', { fontSize: '40px', fill: '#000' }).setOrigin(0.5).setScrollFactor(0);
-        this.add.text(margin + btnSize + 30, height - margin, '>', { fontSize: '40px', fill: '#000' }).setOrigin(0.5).setScrollFactor(0);
-        this.add.text(width - margin, height - margin, '^', { fontSize: '40px', fill: '#000' }).setOrigin(0.5).setScrollFactor(0);
+        [leftBtn, rightBtn, jumpBtn].forEach((button) => button.setStrokeStyle(3, 0xffffff, 0.4));
+
+        this.add.text(margin, height - margin, '‹', { fontSize: '52px', fill: '#FFF', fontWeight: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(21);
+        this.add.text(margin + btnSize + 20, height - margin, '›', { fontSize: '52px', fill: '#FFF', fontWeight: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(21);
+        this.add.text(width - margin, height - margin, 'JUMP', { fontSize: '18px', fill: '#FFF', fontWeight: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(21);
 
         leftBtn.on('pointerdown', () => this.moveLeft = true);
         leftBtn.on('pointerup', () => this.moveLeft = false);
@@ -335,13 +387,41 @@ export default class GameScene extends Phaser.Scene {
         jumpBtn.on('pointerdown', () => this.doJump = true);
     }
 
+    showLevelBanner() {
+        const banner = this.add.container(this.scale.width / 2, 115).setDepth(30).setScrollFactor(0);
+        const bg = this.add.rectangle(0, 0, 310, 72, 0x0b2632, 0.9);
+        bg.setStrokeStyle(2, 0x8ee48f, 0.7);
+        const level = this.add.text(0, -10, `LEVEL ${this.currentLevel + 1}`, {
+            fontSize: '25px', fontWeight: 'bold', fill: '#FFFFFF'
+        }).setOrigin(0.5);
+        const goal = this.add.text(0, 19, `Collect all ${this.healthyCount} healthy foods`, {
+            fontSize: '15px', fill: '#BCE8C2'
+        }).setOrigin(0.5);
+        banner.add([bg, level, goal]);
+        banner.setAlpha(0).setScale(0.9);
+        this.tweens.add({
+            targets: banner,
+            alpha: 1,
+            scale: 1,
+            duration: 300,
+            hold: 1100,
+            yoyo: true,
+            onComplete: () => banner.destroy()
+        });
+    }
+
     gameOver(victory) {
+        if (this.isGameOver) return;
         this.isGameOver = true;
         this.physics.pause();
         this.player.setTint(victory ? 0x00FF00 : 0xFF0000);
-        
-        setTimeout(() => {
+        this.scene.stop('UIScene');
+
+        void finishRun(this.score);
+        void sendScore(this.score);
+
+        this.time.delayedCall(1000, () => {
             this.scene.start('GameOverScene', { victory, score: this.score });
-        }, 1000);
+        });
     }
 }

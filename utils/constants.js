@@ -105,6 +105,7 @@ export const TEXT = {
 export const QUIZ_QUESTIONS = [
     {
         question: "Which one is healthier?",
+        explanation: "Apples provide fiber and useful micronutrients.",
         options: [
             { text: "A: Apple 🍎", isCorrect: true },
             { text: "B: Candy 🍭", isCorrect: false }
@@ -112,6 +113,7 @@ export const QUIZ_QUESTIONS = [
     },
     {
         question: "What is better for energy?",
+        explanation: "Bananas provide carbohydrates plus potassium and fiber.",
         options: [
             { text: "A: Soda 🥤", isCorrect: false },
             { text: "B: Banana 🍌", isCorrect: true }
@@ -119,6 +121,7 @@ export const QUIZ_QUESTIONS = [
     },
     {
         question: "Choose the best snack:",
+        explanation: "Carrots are rich in beta-carotene, which the body converts to vitamin A.",
         options: [
             { text: "A: Carrot 🥕", isCorrect: true },
             { text: "B: Chips 🍟", isCorrect: false }
@@ -126,9 +129,42 @@ export const QUIZ_QUESTIONS = [
     },
     {
         question: "Which drink is best for you?",
+        explanation: "Water hydrates without added sugar.",
         options: [
             { text: "A: Water 💧", isCorrect: true },
             { text: "B: Cola 🥤", isCorrect: false }
+        ]
+    },
+    {
+        question: "Which food is a whole grain?",
+        explanation: "Oats retain the bran, germ, and endosperm of the grain.",
+        options: [
+            { text: "A: Oats", isCorrect: true },
+            { text: "B: Candy", isCorrect: false }
+        ]
+    },
+    {
+        question: "Which choice contains more fiber?",
+        explanation: "Beans are naturally rich in both fiber and plant protein.",
+        options: [
+            { text: "A: Beans", isCorrect: true },
+            { text: "B: Soda", isCorrect: false }
+        ]
+    },
+    {
+        question: "Which is a balanced snack?",
+        explanation: "Fruit and yogurt combine carbohydrates, protein, and useful nutrients.",
+        options: [
+            { text: "A: Fruit + yogurt", isCorrect: true },
+            { text: "B: Frosting", isCorrect: false }
+        ]
+    },
+    {
+        question: "Which option is less processed?",
+        explanation: "Whole fruit is minimally processed and keeps its natural fiber.",
+        options: [
+            { text: "A: Whole fruit", isCorrect: true },
+            { text: "B: Fruit-flavored candy", isCorrect: false }
         ]
     }
 ];

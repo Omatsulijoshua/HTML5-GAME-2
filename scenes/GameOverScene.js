@@ -1,3 +1,5 @@
+import { getSaveData } from '../utils/youtubePlayables.js';
+
 export default class GameOverScene extends Phaser.Scene {
     constructor() {
         super('GameOverScene');
@@ -6,46 +8,52 @@ export default class GameOverScene extends Phaser.Scene {
     create(data) {
         const { width, height } = this.scale;
         const victory = data.victory;
+        const bestScore = Math.max(getSaveData().bestScore, data.score);
 
-        // Background
-        this.add.rectangle(0, 0, width, height, victory ? 0x4CAF50 : 0xF44336).setOrigin(0);
+        this.add.image(width / 2, height / 2, 'garden-bg').setDisplaySize(width, height).setAlpha(0.62);
+        this.add.rectangle(0, 0, width, height, 0x061a24, 0.64).setOrigin(0);
 
-        // Result Text
-        this.add.text(width / 2, height / 3, victory ? 'MISSION COMPLETE!' : 'GAME OVER', {
-            fontSize: '64px',
+        const panel = this.add.rectangle(width / 2, height / 2, 590, 440, 0x0b2632, 0.94);
+        panel.setStrokeStyle(3, victory ? 0x8ee48f : 0xff8a78, 0.8);
+
+        const badgeColor = victory ? 0x55b96a : 0xd95d50;
+        this.add.circle(width / 2, 135, 44, badgeColor);
+        this.add.text(width / 2, 135, victory ? '✓' : '↻', {
+            fontSize: '48px', fontWeight: 'bold', fill: '#FFFFFF'
+        }).setOrigin(0.5);
+
+        this.add.text(width / 2, 212, victory ? 'MISSION COMPLETE' : 'MISSION PAUSED', {
+            fontSize: '43px',
             fontWeight: 'bold',
-            fill: '#FFF',
-            stroke: '#000',
-            strokeThickness: 8
+            fill: '#FFFFFF',
+            stroke: '#061A24',
+            strokeThickness: 6
         }).setOrigin(0.5);
 
-        // Score
-        this.add.text(width / 2, height / 2, `Final Score: ${data.score}`, {
-            fontSize: '32px',
-            fill: '#FFF'
+        this.add.text(width / 2, 264,
+            victory ? 'All five levels complete — every healthy food found.' : 'Recharge and give the garden another run.', {
+                fontSize: '18px',
+                fill: '#CFE6DE',
+                align: 'center',
+                wordWrap: { width: 500 }
+            }).setOrigin(0.5);
+
+        this.add.text(width / 2 - 120, 326, `SCORE\n${data.score}`, {
+            fontSize: '18px', fill: '#BCE8C2', align: 'center', fontWeight: 'bold'
+        }).setOrigin(0.5);
+        this.add.text(width / 2 + 120, 326, `PERSONAL BEST\n${bestScore}`, {
+            fontSize: '18px', fill: '#FFD166', align: 'center', fontWeight: 'bold'
         }).setOrigin(0.5);
 
-        // Subtext
-        this.add.text(width / 2, height / 2 + 60, victory ? 'You are a healthy eating expert!' : 'Don\'t give up! Eat more fruit next time.', {
-            fontSize: '20px',
-            fill: '#FFF',
-            wordWrap: { width: 600 },
-            align: 'center'
+        const button = this.add.rectangle(width / 2, 430, 310, 68, badgeColor)
+            .setInteractive({ useHandCursor: true });
+        button.setStrokeStyle(2, 0xffffff, 0.3);
+        const buttonText = this.add.text(width / 2, 430, 'PLAY ANOTHER MISSION', {
+            fontSize: '21px', fill: '#FFFFFF', fontWeight: 'bold'
         }).setOrigin(0.5);
 
-        // Restart Button
-        const btnBg = this.add.rectangle(width / 2, height * 0.75, 240, 70, 0xFFFFFF).setInteractive({ useHandCursor: true });
-        const btnText = this.add.text(width / 2, height * 0.75, 'PLAY AGAIN', {
-            fontSize: '32px',
-            fill: victory ? '#4CAF50' : '#F44336',
-            fontWeight: 'bold'
-        }).setOrigin(0.5);
-
-        btnBg.on('pointerdown', () => {
-            this.scene.start('MenuScene');
-        });
-
-        btnBg.on('pointerover', () => btnBg.setAlpha(0.8));
-        btnBg.on('pointerout', () => btnBg.setAlpha(1));
+        button.on('pointerover', () => this.tweens.add({ targets: [button, buttonText], scale: 1.04, duration: 100 }));
+        button.on('pointerout', () => this.tweens.add({ targets: [button, buttonText], scale: 1, duration: 100 }));
+        button.on('pointerdown', () => this.scene.start('MenuScene'));
     }
 }
